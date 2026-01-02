@@ -99,6 +99,22 @@ try:
 except Exception as e:
     st.warning(f"提取 PDF 文本時出現問題：{e}")
 
+# Check for an optional Q&A text file that will be used as primary context if present
+qa_path = os.path.join(os.path.dirname(__file__), "Q&A.txt")
+qa_text = ""
+qa_used = False
+if os.path.exists(qa_path):
+    try:
+        with open(qa_path, "r", encoding="utf-8") as f:
+            qa_text = f.read()
+        if qa_text.strip():
+            qa_used = True
+            st.caption("✅ 已找到 Q&A.txt，問答將優先使用其內容。")
+            with st.expander("檢視 Q&A.txt（前 2000 字）"):
+                st.text(qa_text[:2000])
+    except Exception as e:
+        st.warning(f"讀取 Q&A.txt 時出現問題：{e}")
+
 st.header("❓ 簡單 Q&A（問公司政策問題）")
 question = st.text_input("例如：公司請假政策是什麼？年度健檢有幾天？")
 
@@ -108,13 +124,21 @@ if question:
     else:
         with st.spinner("Gemini 正在思考..."):
             try:
+                # Build a prioritized context: prefer Q&A.txt if available
+                if qa_used:
+                    context_source_note = "使用 Q&A.txt（優先）"
+                    context_text_snippet = qa_text[:8000]
+                else:
+                    context_source_note = "使用 PDF 內容"
+                    context_text_snippet = pdf_text[:8000]
+
                 prompt = f"""
 你是專業的 HR 助手，請用繁體中文、親切簡潔的語氣回答。
-僅根據以下公司政策內容回答，不要添加外部知識。
-如果問題不在內容中，請說「抱歉，這部分政策未涵蓋，請直接聯絡 HR。」
+優先根據 Q&A.txt 的內容回答（若存在）；若 Q&A.txt 未涵蓋，再根據 PDF 原文回答。不要添加外部知識。
+如果問題不在上述內容中，請說「抱歉，這部分政策未涵蓋，請直接聯絡 HR。」
 
-政策內容（截取前 8000 字，避免 token 超限）：
-{pdf_text[:8000]}
+{context_source_note}（截取前 8000 字，避免 token 超限）：
+{context_text_snippet}
 
 新人問題：{question}
 """
@@ -174,5 +198,5 @@ st.markdown("---")
 st.markdown("### 使用說明")
 st.write("- 本工具手機平板皆可順暢使用")
 st.write("- iOS 用戶：部署後從 Safari 加到主畫面，即可離線瀏覽（基本快取）")
-st.write("- 如需更新 PDF，請將新的 `policy.pdf` 放在應用程式資料夾中並重新部署")
+st.write("- 如需更新 Q&A，請編輯 `Q&A.txt`；如需更新 PDF，請將新的 `policy.pdf` 放在應用程式資料夾中並重新部署")
 st.write("Made with ❤️ by Python + Streamlit + Google Gemini")
